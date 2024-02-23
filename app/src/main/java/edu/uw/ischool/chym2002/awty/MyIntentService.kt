@@ -4,12 +4,13 @@ import android.app.IntentService
 import android.content.Intent
 import android.content.Context
 import android.os.Handler
+import android.telephony.SmsManager
 import android.util.Log
 import android.widget.Toast
 
 class MyIntentService : IntentService("MyIntentService") {
 
-    private val TAG = "MyIntentService"
+    private val TAG = "AWTYService"
 
     private lateinit var mHandler: Handler
     private var isRunning = false
@@ -20,15 +21,13 @@ class MyIntentService : IntentService("MyIntentService") {
     override fun onCreate() {
         super.onCreate()
         mHandler = Handler()
-
         isRunning = true
-
         Log.i(TAG, "Service created")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // get intent data
-        phoneNumber = reformatPhoneNumber(intent?.getStringExtra("phone_number")!!)
+        phoneNumber = intent?.getStringExtra("phone_number")!!
         message = intent.getStringExtra("message")!!
         time = intent.getStringExtra("time")!!.toInt()
 
@@ -37,16 +36,17 @@ class MyIntentService : IntentService("MyIntentService") {
 
     override fun onHandleIntent(intent: Intent?) {
         while (isRunning) {
-            Log.i(TAG, "Sending message to $phoneNumber: $message")
-
-            mHandler.post {
-                Toast.makeText(this, "$phoneNumber: $message", Toast.LENGTH_SHORT).show()
-            }
-
+            Log.i(TAG, "Sending SMS to $phoneNumber: $message")
             try {
-                Thread.sleep((time * 1000 * 60).toLong())
+                val smsManager = SmsManager.getDefault()
+                smsManager.sendTextMessage(phoneNumber, null, message, null, null)
+                Toast.makeText(this, "SMS sent to ${reformatPhoneNumber(phoneNumber)}: $message", Toast.LENGTH_SHORT).show()
+                Thread.sleep((time * 1000 * 60).toLong()) // Sleep for 'time' minutes
             } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
+            } catch (e: IllegalArgumentException) {
+                // Handle case where phoneNumber or message might be invalid
+                Log.e(TAG, "SMS sending failed: ", e)
             }
         }
     }
@@ -57,6 +57,7 @@ class MyIntentService : IntentService("MyIntentService") {
         super.onDestroy()
     }
 
+    // takes in a string of length 10, returns (xxx) xxx-xxxx
     private fun reformatPhoneNumber(phoneNumber: String): String {
         return "(${phoneNumber.substring(0, 3)}) ${phoneNumber.substring(3, 6)}-${phoneNumber.substring(6, 10)}"
     }
